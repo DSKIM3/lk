@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008 Travis Geiselbrecht
+ * Copyright (c) 2008-2013 Travis Geiselbrecht
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files
@@ -21,6 +21,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include <debug.h>
+#include <bits.h>
 #include <arch/arm.h>
 #include <kernel/thread.h>
 
@@ -69,10 +70,9 @@ static void dump_fault_frame(struct arm_fault_frame *frame)
 	}
 }
 
-static void exception_die(struct arm_fault_frame *frame, int pc_off, const char *msg)
+static void exception_die(struct arm_fault_frame *frame, const char *msg)
 {
 	inc_critical_section();
-	frame->pc += pc_off;
 	dprintf(CRITICAL, msg);
 	dump_fault_frame(frame);
 
@@ -82,20 +82,51 @@ static void exception_die(struct arm_fault_frame *frame, int pc_off, const char 
 
 void arm_syscall_handler(struct arm_fault_frame *frame)
 {
-	exception_die(frame, -4, "unhandled syscall, halting\n");
+	exception_die(frame, "unhandled syscall, halting\n");
 }
 
 void arm_undefined_handler(struct arm_fault_frame *frame)
 {
-	exception_die(frame, -4, "undefined abort, halting\n");
+	inc_critical_section();
+
+	/* look at the undefined instruction, figure out if it's something we can handle */
+	bool in_thumb = frame->spsr & (1<<5);
+	if (in_thumb) {
+		frame->pc -= 2;
+	} else {
+		frame->pc -= 4;
+	}
+
+	uint32_t opcode = *(uint32_t *)frame->pc;
+	//dprintf(CRITICAL, "undefined opcode 0x%x\n", opcode);
+	if (in_thumb) {
+//		panic("unhandled undefined thumb opcode\n");
+	} else {
+#if __FPU_PRESENT
+		/* look for arm vfp/neon coprocessor instructions */
+		if (BITS_SHIFT(opcode, 27, 26)== 0x3) {
+			uint coprocessor = BITS_SHIFT(opcode, 11, 8);
+			if (coprocessor == 10 || coprocessor == 11) {
+				//dprintf(CRITICAL, "vfp instruction\n");
+				arm_fpu_undefined_instruction();
+				dec_critical_section();
+				return;
+			}
+		}
+#endif
+	}
+
+	exception_die(frame, "undefined abort, halting\n");
 }
 
 void arm_data_abort_handler(struct arm_fault_frame *frame)
 {
-	exception_die(frame, -8, "data abort, halting\n");
+	exception_die(frame, "data abort, halting\n");
 }
 
 void arm_prefetch_abort_handler(struct arm_fault_frame *frame)
 {
-	exception_die(frame, -4, "prefetch abort, halting\n");
+	exception_die(frame, "prefetch abort, halting\n");
 }
+
+/* vim: set ts=4 sw=4 noexpandtab: */

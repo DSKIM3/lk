@@ -23,6 +23,7 @@
 #ifndef __ARCH_ARM_H
 #define __ARCH_ARM_H
 
+#include <stdbool.h>
 #include <sys/types.h>
 #include <arch/arm/cores.h>
 #include <compiler.h>
@@ -70,11 +71,12 @@ struct arm_iframe {
 };
 
 struct arm_fault_frame {
-	uint32_t spsr;
 	uint32_t usp;
 	uint32_t ulr;
 	uint32_t r[13];
+	uint32_t lr;
 	uint32_t pc;
+	uint32_t spsr;
 };
 
 #define MODE_MASK 0x1f
@@ -136,6 +138,10 @@ GEN_CP15_REG_FUNCS(tpidrprw, 0, c13, c0, 4);
 GEN_CP15_REG_FUNCS(vbar, 0, c12, c0, 0);
 
 void arm_invalidate_tlb(void);
+
+/* fpu */
+void arm_fpu_set_enable(bool enable);
+void arm_fpu_undefined_instruction(void);
 
 __END_CDECLS
 

@@ -53,10 +53,8 @@ void arch_early_init(void)
 	val |= (3<<22)|(3<<20);
 	arm_write_cpacr(val);
 
-	/* set enable bit in fpexc */
-	__asm__ volatile("vmrs  %0, fpexc" : "=r" (val));
-	val |= (1<<30);
-	__asm__ volatile("vmsr  fpexc, %0" :: "r" (val));
+	/* make sure the fpu starts off disabled */
+	arm_fpu_set_enable(false);
 #endif
 
 #if ENABLE_CYCLE_COUNTER
